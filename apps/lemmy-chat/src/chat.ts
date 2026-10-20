@@ -680,6 +680,7 @@ export async function runTUIChat(
 							const removedOptions = Object.keys(currentOptions).filter(
 								(key) =>
 									!hasSchemaField(baseZodSchema, key) &&
+									!hasSchemaField(newProviderZodSchema, key) &&
 									(!key.startsWith(`${newProvider}:`) ||
 										!hasSchemaField(newProviderZodSchema, key.split(":")[1] || "")),
 							);
