@@ -164,6 +164,35 @@ test("interleaved conversations isolate IDs; clear starts a new identity", async
 	assert.notEqual(calls(seen).at(-1)?.rpc.params?.arguments?.["session_id"], first);
 });
 
+test("clear cannot mix an active turn into a new conversation", async () => {
+	let release = () => {};
+	let started = () => {};
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const entered = new Promise<void>((resolve) => {
+		started = resolve;
+	});
+	const seen = mcpFixture(async (rpc) => {
+		if (rpc.method === "tools/call") {
+			started();
+			await gate;
+		}
+		return undefined;
+	});
+	const conversation = new SearchConversation();
+	const active = conversation.ask(scripted([[search], [fetchPage], () => {}]), "Research");
+	await entered;
+	assert.throws(() => conversation.clear(), /current turn/);
+	release();
+	await active;
+	const oldId = calls(seen)[0]?.rpc.params?.arguments?.["session_id"];
+	assert.equal(calls(seen)[1]?.rpc.params?.arguments?.["session_id"], oldId);
+	conversation.clear();
+	await conversation.ask(scripted([[search], () => {}]), "New research");
+	assert.notEqual(calls(seen).at(-1)?.rpc.params?.arguments?.["session_id"], oldId);
+});
+
 test("off, toolChoice none and a non-tool model never make search requests", async () => {
 	const seen = mcpFixture();
 	for (const [conversation, model, options] of [

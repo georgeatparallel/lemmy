@@ -483,6 +483,10 @@ export async function runTUIChat(
 			const commandValue = parts.slice(1).join(" ");
 
 			if (commandName) {
+				if (isProcessing && commandName !== "exit") {
+					updateStatus("Wait for the current response before changing chat settings.");
+					return;
+				}
 				executeCommand(commandName, commandValue);
 			}
 			return;

@@ -111,6 +111,7 @@ export class SearchConversation extends Context {
 	}
 
 	override clear(): void {
+		if (this.asking) throw new Error("Wait for the current turn before clearing the conversation");
 		super.clear();
 		this.sessionId = randomUUID();
 	}
