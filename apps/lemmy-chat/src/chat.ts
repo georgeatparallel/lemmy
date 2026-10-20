@@ -1,3 +1,5 @@
+import { SearchConversation, resolveSearchMode, type SearchMode } from "./search.js";
+import { loadDefaultsConfig } from "./defaults.js";
 import {
 	AssistantMessage,
 	calculateTokenCost,
@@ -217,13 +219,14 @@ export async function runTUIChat(
 	provider: string,
 	config: ProviderConfigMap[keyof ProviderConfigMap],
 	simulateInput?: string[],
+	searchMode: SearchMode = resolveSearchMode(undefined, loadDefaultsConfig().search),
 ): Promise<void> {
 	// Config is already validated and built by the caller
 	let model = config.model;
 
 	// Create client and context
 	let client = createClientForModel(model, config);
-	const context = new Context();
+	const context = new SearchConversation(searchMode);
 
 	// Create TUI components
 	const tui = new TUI();
@@ -364,7 +367,7 @@ export async function runTUIChat(
 	let isProcessing = false;
 
 	// Store current ask options - initialize with current config
-	let currentOptions: Record<string, any> = { ...config };
+	let currentOptions: Record<string, unknown> = { ...config, ...config.defaults };
 	delete currentOptions["apiKey"]; // Don't expose API key in options
 	let animationInterval: NodeJS.Timeout | null = null;
 
@@ -546,11 +549,11 @@ export async function runTUIChat(
 			// Use AskInput format if we have attachments, otherwise use string
 			const askInput = attachments.length > 0 ? { content: finalContent, attachments } : finalContent;
 
-			const result = await client.ask(askInput, askOptions);
+			const result = await context.ask(client, askInput, askOptions);
 
 			if (result.type === "success") {
 				addMessage(result.message);
-				totalCost += calculateTokenCost(result.message.model, result.message.usage);
+				totalCost += result.cost;
 			} else {
 				const errorComponent = new TextComponent(`❌ Error: ${result.error.message}`, {
 					bottom: 1,
@@ -586,7 +589,7 @@ export async function runTUIChat(
 				messagesContainer.clear();
 
 				// Clear context
-				context.getMessages().length = 0;
+				context.clear();
 				totalCost = 0;
 				updateStatus("Conversation cleared");
 				break;
@@ -653,7 +656,7 @@ export async function runTUIChat(
 							client = newClient;
 							model = newModel;
 							provider = newProvider;
-							currentOptions = newConfig;
+							currentOptions = { ...newConfig, ...newConfig.defaults };
 
 							// Update header
 							header.setText(chalk.yellow(`Chat with ${provider}/${model} | Type 'exit' to quit`));
